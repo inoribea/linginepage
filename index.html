@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lingine Workflow Preview</title>
+    <link rel="icon" href="./favicon.ico" type="image/x-icon" />
+    <link rel="stylesheet" href="./src/styles/main.css" />
+  </head>
+  <body data-theme="dark" data-lang="cn">
+    <div class="stage-shell">
+      <nav class="top-nav surface">
+        <div class="brand-block">
+          <div class="mark">
+            <span class="logo-circle"></span>
+            <span class="brand-title">Lingine Workflow</span>
+          </div>
+        </div>
+        <div class="nav-steps" id="nav-steps">
+          <button type="button" data-target="hero" class="active">概览</button>
+          <button type="button" data-target="creative">创意</button>
+          <button type="button" data-target="intelligence">链路</button>
+          <button type="button" data-target="pipeline">代码</button>
+          <button type="button" data-target="business">数据</button>
+        </div>
+        <div class="nav-actions">
+          <button id="lang-toggle" class="icon-btn" aria-label="切换语言">中</button>
+          <button id="theme-toggle" class="icon-btn" aria-label="切换主题">
+            <span class="icon" id="theme-icon">&#9728;</span>
+          </button>
+        </div>
+      </nav>
+      <main class="page stage-flow">
+        <section class="screen hero-stage visible" data-screen="hero">
+          <div class="stellar-background">
+            <canvas id="stellar-map" aria-label="星空地图可视化"></canvas>
+          </div>
+          <div class="hero-card" id="hero-flip-card">
+            <div class="hero-card-inner">
+              <section class="hero-face hero-panel surface hero-copy">
+                <h1 id="hero-product-title" style="font-size: clamp(3.8rem, 6vw, 5.6rem); font-weight: 800; margin: 0;">
+                  <span class="copy-cn">Lingine Workflow</span>
+                  <span class="copy-en">Lingine Workflow</span>
+                </h1>
+                <h2 id="hero-title" style="margin: 12px 0 0;">
+                  <span class="copy-cn">端到端 AI 角色与素材工作流</span>
+                  <span class="copy-en">End-to-End AI Character & Asset Workflow</span>
+                </h2>
+                <p class="lead">
+                  <span class="copy-cn" id="hero-lead-cn"></span>
+                  <span class="copy-en" id="hero-lead-en"></span>
+                </p>
+                <div class="hero-cta">
+                  <button id="run-demo" class="btn primary">开始创作</button>
+                  <button id="toggle-manual" class="btn ghost">手动模式：关闭</button>
+                </div>
+              </section>
+              <section class="hero-face hero-panel surface hero-visual" data-component="visual-stack">
+                  <div class="layered-stack">
+                    <div class="layer-card">
+                    <p class="layer-label" id="hero-layer-routing">
+                      <span class="copy-cn">动态级联</span>
+                      <span class="copy-en">Dynamic Cascade</span>
+                    </p>
+                    <h3>
+                      <span class="copy-cn">多层协同</span>
+                      <span class="copy-en">Layered Handoff</span>
+                    </h3>
+                    <p>
+                      <span class="copy-cn">自然语言模型 → 创意模型 → 生产模型</span>
+                      <span class="copy-en">NL Model → Creative Model → Production Model</span>
+                    </p>
+                    </div>
+                    <div class="layer-card visual-consciousness">
+                    <p class="layer-label" id="hero-layer-visual">
+                      <span class="copy-cn">视觉表达</span>
+                      <span class="copy-en">Visual Expression</span>
+                    </p>
+                    <h3>
+                      <span class="copy-cn">光带氛围</span>
+                      <span class="copy-en">Luminous Flow</span>
+                    </h3>
+                    <p id="hero-visual-desc">
+                      <span class="copy-cn">层级光带与霓虹动态，突出核心视觉焦点。</span>
+                      <span class="copy-en">Layered glow and neon motion highlighting the focal point.</span>
+                    </p>
+                    </div>
+                    <div class="layer-card translucent">
+                    <p class="layer-label">
+                      <span class="copy-cn">智能协作</span>
+                      <span class="copy-en">Intelligent Collaboration</span>
+                    </p>
+                    <h3>
+                      <span class="copy-cn">协同生产</span>
+                      <span class="copy-en">Co-Production</span>
+                    </h3>
+                    <p>
+                      <span class="copy-cn">以自然语言完成游戏开发</span>
+                      <span class="copy-en">Ship game content with natural language</span>
+                    </p>
+                    </div>
+                  </div>
+                </section>
+            </div>
+          </div>
+          <section class="workflow-ribbon surface" id="workflow-ribbon" data-component="ribbon-glow" role="tablist" aria-label="工作流阶段">
+            <div class="ribbon-item" role="tab" aria-selected="false"></div>
+            <div class="ribbon-item" role="tab" aria-selected="false"></div>
+            <div class="ribbon-item" role="tab" aria-selected="false"></div>
+            <div class="ribbon-item" role="tab" aria-selected="false"></div>
+          </section>
+        </section>
+
+        <section class="screen stage-card" data-screen="creative" aria-labelledby="creative-title">
+          <h2 id="creative-title" style="display: none;">创意输入输出</h2>
+          <section class="creative-stack">
+            <div class="creative-input-columns">
+              <article class="panel surface">
+                <header>
+                  <h2>语言描述</h2>
+                  <p>支持语音/文本与提示词拼接</p>
+                </header>
+                <textarea id="creative-input" rows="6" placeholder="例如：做一个叫炎魔的 Boss..." class="input" aria-label="语言描述" aria-describedby="creative-input-help"></textarea>
+                <div id="creative-input-help" class="sr-only">在此输入您想要创建的角色描述，例如："创建一个叫炎魔的Boss，血量和防御极高，使用火球和地狱火"</div>
+              </article>
+
+              <article class="panel surface creative-json" data-panel="pipeline-role">
+                <header>
+                  <h2>角色卡 JSON</h2>
+                  <p>引擎可直接解析的结构</p>
+                </header>
+                <textarea id="role-card-json" class="code-block code-editor skeleton" spellcheck="false">等待生成...</textarea>
+              </article>
+            </div>
+
+            <article class="panel surface creative-output">
+              <div id="creative-preview" class="role-card-preview skeleton"></div>
+            </article>
+          </section>
+        </section>
+
+        <section class="screen stage-card" data-screen="intelligence">
+          <div class="linkage-stack">
+            <div class="linkage-row">
+              <article class="panel surface material-brief-panel">
+                <header>
+                  <div>
+                    <h2 id="material-brief-title">素材需求</h2>
+                    <p id="material-brief-desc">输入要传递给 AI 的 Prompt</p>
+                  </div>
+                </header>
+                <textarea
+                  id="material-brief-input"
+                  class="input"
+                  rows="7"
+                  placeholder="例如：需要一组霓虹风格的城市街景，道具充满赛博元素..."
+                  aria-label="素材需求 Prompt"
+                ></textarea>
+                <p id="material-brief-tip" class="material-brief-tip">内容会同步到生成流程，保持简洁明确。</p>
+              </article>
+
+              <article class="panel surface reference-upload-panel">
+                <header class="reference-upload-header">
+                  <h2 id="reference-upload-title">参考上传</h2>
+                  <button id="reference-upload-trigger" class="btn ghost small" type="button">上传参考</button>
+                  <input id="reference-upload-input" type="file" accept="image/*" multiple hidden />
+                </header>
+                <p id="reference-upload-tip" class="reference-upload-tip">支持多图上传，自动生成预览。</p>
+                <div
+                  id="reference-preview-grid"
+                  class="reference-preview-grid"
+                  role="region"
+                  aria-label="参考图预览区域"
+                ></div>
+              </article>
+            </div>
+
+            <article class="panel surface resource-gallery-panel">
+              <header>
+                <div>
+                  <h2 id="resource-gallery-title">素材展示</h2>
+                  <p id="resource-gallery-desc">自动读取当前路径 resource 文件夹下的图片</p>
+                </div>
+                <button id="resource-reload" class="btn ghost small" type="button">重新加载</button>
+              </header>
+              <div id="asset-grid" class="resource-gallery" role="region" aria-label="resource 素材展示"></div>
+              <p id="resource-gallery-empty" class="resource-gallery-empty">暂未检测到图片，请将素材放入 resource 文件夹。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="screen stage-card" data-screen="pipeline" aria-labelledby="pipeline-title">
+          <h2 id="pipeline-title" style="display: none;">工作流阶段</h2>
+          <section class="pipeline-layout">
+            <div class="pipeline-column pipeline-column-left">
+              <article class="panel surface" data-panel="pipeline-input">
+                <header>
+                  <h2>语言描述</h2>
+                  <p>支持语音/文本与提示词拼接</p>
+                </header>
+                <textarea id="user-input" rows="6" placeholder="例如：做一个叫炎魔的 Boss..." class="input" aria-label="语言描述" aria-describedby="user-input-help"></textarea>
+                <div id="user-input-help" class="sr-only">在此输入您想要创建的角色描述，例如："创建一个叫炎魔的Boss，血量和防御极高，使用火球和地狱火"</div>
+                <div class="chip-row">
+                  <button class="chip" data-template="tank_boss">坦克 Boss</button>
+                  <button class="chip" data-template="assassin_heroine">刺客女主</button>
+                  <button class="chip" data-template="arcane_mage">奥术法师</button>
+                </div>
+              </article>
+
+              <article class="panel surface" data-panel="pipeline-prompt">
+                <header>
+                  <h2>提示词注入</h2>
+                  <p>[Pasted Content 1837 chars]</p>
+                </header>
+                <textarea id="prompt-preview" class="code-block code-editor" spellcheck="false"></textarea>
+              </article>
+            </div>
+            <div class="pipeline-column pipeline-column-right">
+              <section class="panel surface code-script-block" data-panel="pipeline-script">
+                <header>
+                  <h2>代码自生成</h2>
+                  <p>自然语言 + 提示词组合生成 GDScript</p>
+                </header>
+                <div class="code-script-columns">
+                  <article class="code-script-pane">
+                    <h3>
+                      <span class="copy-cn">动态代码</span>
+                      <span class="copy-en">Primary Script</span>
+                    </h3>
+                    <textarea
+                      id="code-script-preview"
+                      class="code-block code-editor skeleton"
+                      spellcheck="false"
+                      aria-label="GDScript 输出">等待生成...</textarea>
+                  </article>
+                  <article class="code-script-pane">
+                    <h3>
+                      <span class="copy-cn">静态代码</span>
+                      <span class="copy-en">Context Snapshot</span>
+                    </h3>
+                    <textarea
+                      id="code-script-manifest"
+                      class="code-block code-editor skeleton"
+                      spellcheck="false"
+                      aria-label="引擎上下文">等待生成...</textarea>
+                  </article>
+                </div>
+              </section>
+            </div>
+          </section>
+        </section>
+
+        <section class="screen stage-card" data-screen="business">
+          <section class="commercial surface">
+            <header>
+              <h2>提升效果</h2>
+              <p>基于 Lingine Workflow 的成本/速度/复用率对比</p>
+            </header>
+            <div class="commercial-grid" id="commercial-grid"></div>
+            <div class="chart-placeholder">
+              <canvas id="kpi-chart"></canvas>
+              <p>图表数据由 mockCommercialMetrics() 生成，未来可接入真实 BI。</p>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="./src/scripts/components.js" type="module"></script>
+    <script src="./src/scripts/app.js" type="module"></script>
+  </body>
+</html>
