@@ -39,9 +39,161 @@ const narrativeSectionText = {
 
 const DEFAULT_PORTRAIT = "./assets/characters/demo/portrait.png";
 
+const TYPEWRITER_DEFAULTS = {
+  prompt: { chunk: 3, minDelay: 18, maxDelay: 42, initialDelay: 60 },
+  json: { chunk: 2, minDelay: 16, maxDelay: 36, initialDelay: 120 },
+  code: { chunk: 4, minDelay: 14, maxDelay: 32, initialDelay: 180 },
+  manifest: { chunk: 3, minDelay: 18, maxDelay: 34, initialDelay: 220 },
+};
+
+const typewriterControllers = new Map();
+
+const ROLE_CARD_TEMPLATE = {
+  id: "dragonborn_paladin",
+  name: "龙裔圣骑士",
+  description:
+    "拥有远古龙族血统的英勇骑士，身披闪亮银色重板甲与鲜艳红披风。手持注魔发光巨剑，誓言以祖先之力净化地牢。",
+  tags: ["dragonborn", "paladin", "hero", "melee", "tank", "high_mobility"],
+  visuals: {
+    portrait_path: "res://assets/characters/dragonborn_paladin/portrait.png",
+    sprite_path: "res://assets/characters/dragonborn_paladin/sprite.png",
+    theme_color: "#FFD700",
+  },
+  base_stats: {
+    hp_max: 850,
+    mp_max: 240,
+    atk: 95,
+    str: 90,
+    def: 85,
+    spd: 300,
+  },
+  skills: ["dragon_rush_charge", "radiant_greatsword_sweep", "bullet_bane_cleave"],
+  ai_config: {
+    behavior_tree: "mobile_melee_aggressor",
+    aggro_radius: 450,
+  },
+};
+
+const ROLE_ARCHETYPES = [
+  {
+    id: "dragonborn_paladin",
+    keywords: ["圣骑士", "龙裔", "守护", "paladin", "骑士"],
+    name: "龙裔圣骑士",
+    description:
+      "拥有远古龙族血统的英勇骑士，身披闪亮银色重板甲与鲜艳红披风，手持注魔巨剑，以祖灵之力守护王国。",
+    tags: [...ROLE_CARD_TEMPLATE.tags],
+    themeColor: ROLE_CARD_TEMPLATE.visuals.theme_color,
+    skills: [...ROLE_CARD_TEMPLATE.skills],
+    ai_config: { ...ROLE_CARD_TEMPLATE.ai_config },
+    stats: { ...ROLE_CARD_TEMPLATE.base_stats },
+  },
+  {
+    id: "shadow_assassin",
+    keywords: ["刺客", "暗影", "assassin", "潜行"],
+    name: "影契刺客",
+    description: "穿梭暗影的双匕首刺客，惯用瞬步与高爆发袭击首领弱点，擅长蓝紫霓虹风格的残影移动。",
+    tags: ["assassin", "rogue", "stealth", "crit", "agile"],
+    themeColor: "#5C73FF",
+    skills: ["shadow_step", "umbral_rush", "silent_bloom"],
+    ai_config: {
+      behavior_tree: "stealth_highburst",
+      aggro_radius: 380,
+    },
+    stats: { hp_max: 560, mp_max: 320, atk: 140, str: 70, def: 45, spd: 380 },
+  },
+  {
+    id: "arcane_mage",
+    keywords: ["法师", "奥术", "mage", "术士"],
+    name: "星辉奥术师",
+    description: "操纵星象魔法的长距离控制者，以银白与蔚蓝为主调，凭借魔阵与流星引导范围爆发。",
+    tags: ["mage", "ranged", "control", "burst", "support"],
+    themeColor: "#6CE0FF",
+    skills: ["astral_bind", "meteor_array", "mana_refraction"],
+    ai_config: {
+      behavior_tree: "ranged_controller",
+      aggro_radius: 420,
+    },
+    stats: { hp_max: 600, mp_max: 520, atk: 125, str: 60, def: 55, spd: 260 },
+  },
+  {
+    id: "inferno_overlord",
+    keywords: ["boss", "炎魔", "恶魔", "demon", "火", "地狱"],
+    name: "炎魔统御者",
+    description: "统御熔岩火海的地狱统帅，深红骨甲与炽燃巨斧象征毁灭，擅长群体压制与持续灼烧。",
+    tags: ["boss", "fire", "aoe", "siege"],
+    themeColor: "#FF5A2F",
+    skills: ["hellfire_barrier", "meteor_maw", "abyssal_chain"],
+    ai_config: {
+      behavior_tree: "aggressive_boss_ai",
+      aggro_radius: 520,
+    },
+    stats: { hp_max: 1100, mp_max: 260, atk: 155, str: 130, def: 90, spd: 280 },
+  },
+];
+
+function selectArchetype(description = "") {
+  const normalized = description.toLowerCase();
+  return (
+    ROLE_ARCHETYPES.find((archetype) =>
+      archetype.keywords.some((keyword) => {
+        const keyLower = keyword.toLowerCase();
+        return normalized.includes(keyLower) || description.includes(keyword);
+      }),
+    ) ?? ROLE_ARCHETYPES[0]
+  );
+}
+
+function extractRoleName(description = "") {
+  if (!description) return "";
+  const namedMatch = description.match(/叫([^\s，。,.]+)/);
+  if (namedMatch?.[1]) return namedMatch[1];
+  const enMatch = description.match(/named\s+([a-z0-9_\-]+)/i);
+  if (enMatch?.[1]) return enMatch[1];
+  return description.slice(0, Math.min(10, description.length));
+}
+
+function buildRoleCardFromDescription(description = "") {
+  const trimmed = description.trim();
+  const archetype = selectArchetype(trimmed);
+  const slugSource = trimmed || archetype.id;
+  const slugCandidate = slugify(slugSource);
+  const slug = slugCandidate.replace(/^_+|_+$/g, "");
+  const roleId = slug || archetype.id;
+  const derivedName = extractRoleName(trimmed) || archetype.name;
+  const composedDescription = trimmed ? `${trimmed}。${archetype.description}` : archetype.description;
+
+  return {
+    id: roleId,
+    name: derivedName,
+    description: composedDescription,
+    tags: [...archetype.tags],
+    visuals: {
+      portrait_path: `res://assets/characters/${roleId}/portrait.png`,
+      sprite_path: `res://assets/characters/${roleId}/sprite.png`,
+      theme_color: archetype.themeColor,
+    },
+    base_stats: { ...archetype.stats },
+    skills: [...archetype.skills],
+    ai_config: { ...archetype.ai_config },
+  };
+}
+
+function buildPromptFromDescription(description = "") {
+  const trimmed = description.trim();
+  if (!trimmed) return promptTemplate;
+  return `${promptTemplate}
+
+## Player Description
+${trimmed}
+
+## Output Requirements
+- Emit JSON with id, name, description, tags, visuals, base_stats, skills, ai_config`;
+}
+
 const state = {
   input: "",
   manual: false,
+  generating: false,
   lastDecision: null,
   lastRoleCard: null,
   lastMetrics: null,
@@ -50,6 +202,10 @@ const state = {
   currentScreen: "hero",
   heroFull: true,
   heroCollapsing: false,
+  materialBriefReady: false,
+  referenceCount: 0,
+  assetGenerating: false,
+  assetsReady: false,
 };
 
 const animationState = {
@@ -290,8 +446,8 @@ function startApp() {
   // 现在获取DOM元素
   dom = getDomElements();
   setupFloatingTopNav();
-  // 设置初始的prompt预览内容
-  if (dom.promptPreview) dom.promptPreview.value = promptTemplate;
+  resetPromptPreview();
+  resetRoleCardPreview();
   mountComponents();
   attachEvents();
   hydrateNarrative();
@@ -309,7 +465,6 @@ function startApp() {
   startAnimationDriver();
   applyLingineTokens(state.theme);
   if (dom.themeIcon) dom.themeIcon.textContent = state.theme === "dark" ? "\u263E" : "\u2600";
-  loadResourceImages();
 }
 
 let chipButtons = [];
@@ -321,12 +476,138 @@ function syncTextAreaValue(source, target) {
   }
 }
 
+function stopTypewriter(target) {
+  if (!target) return;
+  const timer = typewriterControllers.get(target);
+  if (timer) {
+    window.clearTimeout(timer);
+    typewriterControllers.delete(target);
+  }
+  target.dataset.typing = "false";
+}
+
+function typewriterEffect(target, text, options = {}) {
+  if (!target) return Promise.resolve();
+  const {
+    chunk = 2,
+    minDelay = 14,
+    maxDelay = 32,
+    initialDelay = 0,
+    onStart,
+    onComplete,
+    instant = false,
+  } = options;
+
+  stopTypewriter(target);
+
+  return new Promise((resolve) => {
+    const fullText = text ?? "";
+    if (instant || fullText.length === 0) {
+      target.value = fullText;
+      target.dataset.typing = "false";
+      if (typeof onComplete === "function") onComplete();
+      resolve();
+      return;
+    }
+
+    target.value = "";
+    target.dataset.typing = "true";
+    if (typeof onStart === "function") onStart();
+    let index = 0;
+
+    const step = () => {
+      if (index >= fullText.length) {
+        target.value = fullText;
+        target.dataset.typing = "false";
+        typewriterControllers.delete(target);
+        if (typeof onComplete === "function") onComplete();
+        resolve();
+        return;
+      }
+
+      const nextChunk = fullText.slice(index, index + chunk);
+      index += chunk;
+      target.value += nextChunk;
+      target.scrollTop = target.scrollHeight;
+      const delay = minDelay + Math.random() * Math.max(1, maxDelay - minDelay);
+      const timer = window.setTimeout(step, delay);
+      typewriterControllers.set(target, timer);
+    };
+
+    const starter = window.setTimeout(step, Math.max(0, initialDelay));
+    typewriterControllers.set(target, starter);
+  });
+}
+
+function primeTextArea(element, placeholder = "") {
+  if (!element) return;
+  stopTypewriter(element);
+  element.value = "";
+  if (placeholder) {
+    element.placeholder = placeholder;
+  }
+  element.dataset.typing = "false";
+  element.dataset.state = "idle";
+}
+
+function resetPromptPreview() {
+  if (!dom || !dom.promptPreview) return;
+  primeTextArea(dom.promptPreview, uiText.misc.waitingGenerate[state.lang]);
+  dom.promptPreview.dataset.state = "pending";
+}
+
+function updatePromptPreview(description) {
+  if (!dom || !dom.promptPreview) return;
+  const trimmed = (description || "").trim();
+  if (!trimmed) {
+    resetPromptPreview();
+    return;
+  }
+  dom.promptPreview.dataset.state = "ready";
+  const config = TYPEWRITER_DEFAULTS.prompt;
+  typewriterEffect(dom.promptPreview, buildPromptFromDescription(trimmed), {
+    chunk: config.chunk,
+    minDelay: config.minDelay,
+    maxDelay: config.maxDelay,
+    initialDelay: config.initialDelay,
+  });
+}
+
+function resetRoleCardPreview() {
+  if (!dom) return;
+  if (dom.roleCardEditor) {
+    primeTextArea(dom.roleCardEditor, uiText.misc.waitingGenerate[state.lang]);
+  }
+  renderRoleCardPreview(null);
+  state.lastRoleCard = null;
+}
+
+function driveDescriptionChange(value, options = {}) {
+  if (!dom) return null;
+  const normalized = typeof value === "string" ? value : "";
+  state.input = normalized;
+  updatePromptPreview(normalized);
+  const trimmed = normalized.trim();
+  if (!trimmed) {
+    resetRoleCardPreview();
+    return null;
+  }
+  if (state.manual && !options.force) {
+    return null;
+  }
+  const card = buildRoleCardFromDescription(trimmed);
+  updateRoleCard(card, { animate: true });
+  return card;
+}
+
 function handleReferenceUpload(fileList) {
   if (!dom || !dom.referencePreviewGrid) return;
   const files = Array.from(fileList ?? []);
   const container = dom.referencePreviewGrid;
   container.innerHTML = "";
 
+  state.referenceCount = files.length;
+  updateResourceButtonState();
   if (!files.length) {
     container.dataset.state = "empty";
     return;
@@ -353,10 +634,47 @@ function handleReferenceUpload(fileList) {
   container.dataset.state = "filled";
 }
 
-function setDescriptionValue(value) {
+function canGenerateAssets() {
+  return state.materialBriefReady && state.referenceCount > 0;
+}
+
+function updateResourceButtonState() {
+  if (!dom || !dom.resourceReload) return;
+  const ready = canGenerateAssets();
+  dom.resourceReload.disabled = !ready || state.assetGenerating;
+  dom.resourceReload.dataset.ready = ready ? "true" : "false";
+  dom.resourceReload.dataset.loading = state.assetGenerating ? "true" : "false";
+}
+
+function showResourceMessage(key) {
+  if (!dom || !dom.resourceGalleryEmpty) return;
+  const copy = uiText.intelligence.gallery[key]?.[state.lang];
+  if (copy) {
+    dom.resourceGalleryEmpty.textContent = copy;
+  }
+  dom.resourceGalleryEmpty.hidden = false;
+}
+
+function hideResourceMessage() {
+  if (!dom || !dom.resourceGalleryEmpty) return;
+  dom.resourceGalleryEmpty.hidden = true;
+}
+
+function triggerResourceGeneration(options = {}) {
+  if (state.assetGenerating) return Promise.resolve([]);
+  const override = options.override === true;
+  if (!override && !canGenerateAssets()) {
+    showResourceMessage("empty");
+    return Promise.resolve([]);
+  }
+  return loadResourceImages({ override });
+}
+
+function setDescriptionValue(value, options = {}) {
   if (!dom) return;
-  if (dom.input) dom.input.value = value;
-  if (dom.creativeInput) dom.creativeInput.value = value;
+  if (dom.input && dom.input.value !== value) dom.input.value = value;
+  if (dom.creativeInput && dom.creativeInput.value !== value) dom.creativeInput.value = value;
+  driveDescriptionChange(value, { force: options.force === true });
 }
 
 function resolvePortraitPath(path) {
@@ -378,6 +696,9 @@ function hexToRgb(hex) {
 
 function handleRoleCardEditorInput() {
   if (!dom || !dom.roleCardEditor) return;
+  if (dom.roleCardEditor.dataset.typing === "true") {
+    return;
+  }
   const raw = dom.roleCardEditor.value.trim();
   const waitingCn = uiText.misc.waitingGenerate?.cn;
   const waitingEn = uiText.misc.waitingGenerate?.en;
@@ -406,9 +727,11 @@ function attachEvents() {
   if (dom.input && dom.creativeInput) {
     dom.input.addEventListener("input", () => {
       syncTextAreaValue(dom.input, dom.creativeInput);
+      driveDescriptionChange(dom.input.value);
     });
     dom.creativeInput.addEventListener("input", () => {
       syncTextAreaValue(dom.creativeInput, dom.input);
+      driveDescriptionChange(dom.creativeInput.value);
     });
   }
 
@@ -421,7 +744,17 @@ function attachEvents() {
     dom.referenceUploadTrigger.addEventListener("click", () => dom.referenceUploadInput.click());
     dom.referenceUploadInput.addEventListener("change", () => handleReferenceUpload(dom.referenceUploadInput.files));
   }
-  if (dom.resourceReload) dom.resourceReload.addEventListener("click", loadResourceImages);
+  if (dom.materialBriefInput) {
+    dom.materialBriefInput.addEventListener("input", () => {
+      state.materialBriefReady = Boolean(dom.materialBriefInput.value.trim());
+      updateResourceButtonState();
+    });
+  }
+  if (dom.resourceReload) {
+    dom.resourceReload.addEventListener("click", () => {
+      triggerResourceGeneration();
+    });
+  }
   if (dom.themeToggle) dom.themeToggle.addEventListener("click", toggleTheme);
   if (dom.langToggle) dom.langToggle.addEventListener("click", toggleLanguage);
   if (dom.navSteps) {
@@ -436,8 +769,9 @@ function attachEvents() {
   }
   chipButtons.forEach((btn) =>
     btn.addEventListener("click", () => {
-      if (templates[btn.dataset.template]) {
-        setDescriptionValue(templates[btn.dataset.template]);
+      const preset = templates[btn.dataset.template];
+      if (preset) {
+        setDescriptionValue(preset, { force: true });
       }
     }),
   );
@@ -446,23 +780,31 @@ function attachEvents() {
     dom.roleCardEditor.addEventListener("input", handleRoleCardEditorInput);
     handleRoleCardEditorInput();
   }
+
+  updateResourceButtonState();
 }
 
 async function runDemoFlow() {
   if (!dom) {
-    console.warn('DOM not initialized yet');
+    console.warn("DOM not initialized yet");
+    return;
+  }
+  if (state.generating) {
     return;
   }
 
   try {
+    state.generating = true;
     collapseHeroFullscreen();
     if (dom.heroCard) {
       dom.heroCard.classList.add("is-flipped");
     }
     const rawDescription = dom.input?.value ?? dom.creativeInput?.value ?? "";
     const description = rawDescription.trim() || templates.tank_boss;
-    setDescriptionValue(description);
     renderSkeletons();
+    await wait(180);
+    setDescriptionValue(description, { force: true });
+    await wait(220);
 
     const payload = buildRoutingPayload(description);
     const decision = await mockRouteDecision(payload);
@@ -471,18 +813,23 @@ async function runDemoFlow() {
     const metrics = await mockCommercialMetrics();
 
     updateRouting(decision);
-    updateRoleCard(card);
+    updateRoleCard(card, { animate: false });
     updateEngineScript(script, card);
     updateEnginePreview(card);
-    await loadResourceImages();
+    state.materialBriefReady = true;
+    state.referenceCount = Math.max(1, state.referenceCount);
+    updateResourceButtonState();
+    await triggerResourceGeneration({ override: true });
     updateCommercial(metrics);
   } catch (error) {
-    console.error('Demo flow error:', error);
+    console.error("Demo flow error:", error);
     // 在UI上显示错误信息
     if (dom.roleCardEditor) {
       dom.roleCardEditor.value = `错误: ${error.message || "演示流程出现错误"}`;
     }
     renderRoleCardPreview(null, state.lang === "cn" ? "演示流程出现错误" : "Demo flow failed");
+  } finally {
+    state.generating = false;
   }
 }
 
@@ -532,16 +879,21 @@ function renderSkeletons() {
 
   const lang = state.lang;
 
-  if (dom.roleCardEditor) dom.roleCardEditor.value = uiText.misc.waitingGenerate[lang];
-  renderRoleCardPreview(null);
-  if (dom.gdscript) dom.gdscript.value = uiText.misc.waitingGenerate[lang];
-  if (dom.codeScript) dom.codeScript.value = uiText.misc.waitingGenerate[lang];
-  if (dom.codeScriptManifest) dom.codeScriptManifest.value = uiText.misc.waitingGenerate[lang];
-  if (dom.assetGrid) dom.assetGrid.innerHTML = "";
+  resetPromptPreview();
+  resetRoleCardPreview();
+  if (dom.codeScript) primeTextArea(dom.codeScript, uiText.misc.waitingGenerate[lang]);
+  if (dom.codeScriptManifest) primeTextArea(dom.codeScriptManifest, uiText.misc.waitingGenerate[lang]);
+  if (dom.assetGrid) {
+    dom.assetGrid.innerHTML = "";
+    dom.assetGrid.dataset.revealed = "false";
+  }
   if (dom.resourceGalleryEmpty) {
     dom.resourceGalleryEmpty.textContent = uiText.intelligence.gallery.empty[lang];
     dom.resourceGalleryEmpty.hidden = false;
   }
+  state.assetGenerating = false;
+  state.assetsReady = false;
+  updateResourceButtonState();
 }
 
 function toggleTheme() {
@@ -752,11 +1104,20 @@ function updateUIText() {
 
   // 更新等待文本
   if (dom.codeScriptManifest) {
-    dom.codeScriptManifest.value = state.lastRoleCard
-      ? buildScriptManifest(state.lastRoleCard, dom.codeScript?.value ?? "")
-      : uiText.misc.waitingGenerate[lang];
+    if (state.lastRoleCard) {
+      stopTypewriter(dom.codeScriptManifest);
+      dom.codeScriptManifest.value = buildScriptManifest(state.lastRoleCard, dom.codeScript?.value ?? "");
+    } else {
+      primeTextArea(dom.codeScriptManifest, uiText.misc.waitingGenerate[lang]);
+    }
+  }
+  if (state.input.trim()) {
+    updatePromptPreview(state.input);
+  } else {
+    resetPromptPreview();
   }
   updateSkeletonTexts();
+  updateResourceButtonState();
   handleRoleCardEditorInput();
 }
 
@@ -767,11 +1128,10 @@ function updateSkeletonTexts() {
   const lang = state.lang;
 
   if (!state.lastRoleCard) {
-    if (dom.roleCardEditor) dom.roleCardEditor.value = uiText.misc.waitingGenerate[lang];
+    if (dom.roleCardEditor) primeTextArea(dom.roleCardEditor, uiText.misc.waitingGenerate[lang]);
     renderRoleCardPreview(null);
-    if (dom.gdscript) dom.gdscript.value = uiText.misc.waitingGenerate[lang];
-    if (dom.codeScript) dom.codeScript.value = uiText.misc.waitingGenerate[lang];
-    if (dom.codeScriptManifest) dom.codeScriptManifest.value = uiText.misc.waitingGenerate[lang];
+    if (dom.codeScript) primeTextArea(dom.codeScript, uiText.misc.waitingGenerate[lang]);
+    if (dom.codeScriptManifest) primeTextArea(dom.codeScriptManifest, uiText.misc.waitingGenerate[lang]);
     if (dom.finalPrompt) dom.finalPrompt.textContent = uiText.misc.building[lang];
     if (dom.ioStatus) dom.ioStatus.textContent = uiText.misc.writing[lang];
     if (dom.scriptStatus) dom.scriptStatus.textContent = uiText.misc.writing[lang];
@@ -1121,15 +1481,41 @@ function updateRouting(decision) {
   if (dom.routingLog) dom.routingLog.value = JSON.stringify(decision, null, 2);
 }
 
-function updateRoleCard(card) {
+function updateRoleCard(card, options = {}) {
   if (!dom) {
     console.warn('DOM not initialized yet');
     return;
   }
 
+  const { animate = false } = options;
   state.lastRoleCard = card;
-  if (dom.roleCardEditor) dom.roleCardEditor.value = JSON.stringify(card, null, 2);
-  renderRoleCardPreview(card);
+  if (!card) {
+    resetRoleCardPreview();
+    return;
+  }
+
+  const jsonText = JSON.stringify(card, null, 2);
+  if (!dom.roleCardEditor) {
+    renderRoleCardPreview(card);
+    return;
+  }
+
+  if (!animate) {
+    stopTypewriter(dom.roleCardEditor);
+    dom.roleCardEditor.value = jsonText;
+    renderRoleCardPreview(card);
+    return;
+  }
+
+  renderRoleCardPreview(null);
+  const config = TYPEWRITER_DEFAULTS.json;
+  typewriterEffect(dom.roleCardEditor, jsonText, {
+    chunk: config.chunk,
+    minDelay: config.minDelay,
+    maxDelay: config.maxDelay,
+    initialDelay: config.initialDelay,
+    onComplete: () => renderRoleCardPreview(card),
+  });
 }
 
 function updateEngineScript(script, card = state.lastRoleCard) {
@@ -1138,9 +1524,25 @@ function updateEngineScript(script, card = state.lastRoleCard) {
     return;
   }
 
-  if (dom.gdscript) dom.gdscript.value = script;
-  if (dom.codeScript) dom.codeScript.value = script;
-  if (dom.codeScriptManifest) dom.codeScriptManifest.value = buildScriptManifest(card, script);
+  const codeText = script ?? "";
+  if (dom.codeScript) {
+    const config = TYPEWRITER_DEFAULTS.code;
+    typewriterEffect(dom.codeScript, codeText, {
+      chunk: config.chunk,
+      minDelay: config.minDelay,
+      maxDelay: config.maxDelay,
+      initialDelay: config.initialDelay,
+    });
+  }
+  if (dom.codeScriptManifest) {
+    const manifestConfig = TYPEWRITER_DEFAULTS.manifest;
+    typewriterEffect(dom.codeScriptManifest, buildScriptManifest(card, codeText), {
+      chunk: manifestConfig.chunk,
+      minDelay: manifestConfig.minDelay,
+      maxDelay: manifestConfig.maxDelay,
+      initialDelay: manifestConfig.initialDelay,
+    });
+  }
 }
 
 function updateEnginePreview(card) {
@@ -1181,58 +1583,78 @@ function updateCommercial(metrics) {
     .join("");
 }
 
-async function loadResourceImages() {
+async function loadResourceImages(options = {}) {
   if (!dom || !dom.assetGrid) return [];
+  const { override = false } = options;
+  if (!override && !canGenerateAssets()) {
+    showResourceMessage("empty");
+    return [];
+  }
   const gallery = dom.assetGrid;
   gallery.innerHTML = "";
   gallery.classList.add("is-loading");
-  if (dom.resourceGalleryEmpty) {
-    dom.resourceGalleryEmpty.textContent = uiText.intelligence.gallery.empty[state.lang];
-    dom.resourceGalleryEmpty.hidden = true;
-  }
+  gallery.dataset.revealed = "false";
+  hideResourceMessage();
+  state.assetGenerating = true;
+  updateResourceButtonState();
 
   try {
     const images = await fetchResourceImages();
     if (!images.length) {
-      if (dom.resourceGalleryEmpty) {
-        dom.resourceGalleryEmpty.textContent = uiText.intelligence.gallery.empty[state.lang];
-        dom.resourceGalleryEmpty.hidden = false;
-      }
+      showResourceMessage("missing");
       return [];
     }
 
-    images.forEach((src, idx) => {
-      const item = document.createElement("figure");
-      item.className = "resource-item";
-
-      const img = document.createElement("img");
-      img.src = src;
-      img.alt = `resource-${idx + 1}`;
-      img.loading = "lazy";
-
-      const caption = document.createElement("figcaption");
-      caption.className = "sr-only";
-      caption.textContent = `resource-${idx + 1}`;
-
-      item.append(img, caption);
-      gallery.appendChild(item);
-    });
-
-    if (dom.resourceGalleryEmpty) {
-      dom.resourceGalleryEmpty.hidden = true;
-    }
+    await revealResourceImagesSequential(images);
+    gallery.dataset.revealed = "true";
+    hideResourceMessage();
+    state.assetsReady = true;
 
     return images;
   } catch (error) {
     console.error("Resource load error:", error);
-    if (dom.resourceGalleryEmpty) {
-      dom.resourceGalleryEmpty.textContent = uiText.intelligence.gallery.error[state.lang];
-      dom.resourceGalleryEmpty.hidden = false;
-    }
+    showResourceMessage("error");
     return [];
   } finally {
     gallery.classList.remove("is-loading");
+    state.assetGenerating = false;
+    updateResourceButtonState();
   }
+}
+
+function revealResourceImagesSequential(images) {
+  if (!dom || !dom.assetGrid) return Promise.resolve([]);
+  const gallery = dom.assetGrid;
+  gallery.innerHTML = "";
+  return new Promise((resolve) => {
+    if (!images.length) {
+      resolve([]);
+      return;
+    }
+    images.forEach((src, idx) => {
+      window.setTimeout(() => {
+        const item = document.createElement("figure");
+        item.className = "resource-item";
+        item.style.setProperty("--reveal-order", String(idx));
+
+        const img = document.createElement("img");
+        img.src = src;
+        img.alt = `resource-${idx + 1}`;
+        img.loading = "lazy";
+
+        const caption = document.createElement("figcaption");
+        caption.className = "sr-only";
+        caption.textContent = `resource-${idx + 1}`;
+
+        item.append(img, caption);
+        gallery.appendChild(item);
+
+        if (idx === images.length - 1) {
+          resolve(images);
+        }
+      }, idx * 180);
+    });
+  });
 }
 
 async function fetchResourceImages() {
@@ -1306,6 +1728,7 @@ function renderRoleCardPreview(card, errorMessage) {
   const container = dom.creativePreview;
   const lang = state.lang;
 
+  container.dataset.revealed = card && !errorMessage ? "true" : "false";
   container.classList.toggle("skeleton", !card && !errorMessage);
 
   if (errorMessage) {
@@ -1509,24 +1932,7 @@ async function mockRouteDecision(payload) {
 
 async function mockRoleCard(decision, payload) {
   await wait(300);
-  const slug = slugify(decision.selectedModel + Date.now());
-  return {
-    id: slug,
-    name: payload.description.slice(0, 6),
-    description: state.lang === "cn" ? `${payload.description}（自动摘要）` : `${payload.description} (auto summary)`,
-    tags: ["boss", "fire", "hostile"],
-    visuals: {
-      portrait_path: `res://assets/characters/${slug}/portrait.png`,
-      sprite_path: `res://assets/characters/${slug}/sprite.png`,
-      theme_color: "#FF4500",
-    },
-    base_stats: inferStats(payload.description),
-    skills: ["fireball_v3", "hellfire_storm", "passive_burn"],
-    ai_config: {
-      behavior_tree: "aggressive_boss_ai",
-      aggro_radius: 480.0,
-    },
-  };
+  return buildRoleCardFromDescription(payload.description);
 }
 
 async function mockEngineScript(card) {
@@ -1592,16 +1998,6 @@ function wait(ms) {
 
 function slugify(text) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-}
-
-function inferStats(description) {
-  if (description.includes("刺客")) {
-    return { hp_max: 900, mp_max: 300, atk: 140, def: 40, str: 95, spd: 185 };
-  }
-  if (description.includes("法师")) {
-    return { hp_max: 750, mp_max: 520, atk: 150, def: 55, str: 70, spd: 90 };
-  }
-  return { hp_max: 4800, mp_max: 600, atk: 155, def: 80, str: 210, spd: 65 };
 }
 
 function clamp(value, min, max) {

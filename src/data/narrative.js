@@ -152,8 +152,15 @@ export const uiText = {
     gallery: {
       title: { cn: "素材展示", en: "Material Gallery" },
       desc: { cn: "生成图片素材", en: "Auto-load images under resource directory" },
-      reload: { cn: "重新加载", en: "Reload" },
-      empty: { cn: "暂未检测到图片，请将素材放入 resource 文件夹。", en: "No images found. Drop files into resource folder." },
+      reload: { cn: "生成素材", en: "Generate Assets" },
+      empty: {
+        cn: "请输入素材需求并上传至少一张参考图后，再点击生成素材。",
+        en: "Enter a material brief and upload at least one reference before generating assets.",
+      },
+      missing: {
+        cn: "暂未检测到图片，请将素材放入 resource 文件夹。",
+        en: "No images detected. Drop files into the resource folder.",
+      },
       error: { cn: "读取素材时出现问题，请检查 resource 目录。", en: "Failed to load assets. Check the resource directory." },
       aria: { cn: "resource 素材展示", en: "Resource gallery" }
     },
