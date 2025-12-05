@@ -938,10 +938,16 @@ async function runDemoFlow() {
     state.generating = true;
     collapseHeroFullscreen();
     const rawDescription = dom.input?.value ?? dom.creativeInput?.value ?? "";
-    const description = rawDescription.trim() || templates.tank_boss;
+    const userDescription = rawDescription.trim();
+    const description = userDescription || templates.tank_boss;
     renderPipelineSkeletons();
     await wait(180);
-    setPipelineDescription(description, { force: true, mirrorCreative: true });
+    if (userDescription) {
+      setPipelineDescription(userDescription, { force: true, mirrorCreative: true });
+    } else {
+      driveDescriptionChange(description, { force: true });
+      handleCreativeDescriptionChange(description);
+    }
     await wait(220);
 
     const payload = buildRoutingPayload(description);

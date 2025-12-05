@@ -65,7 +65,7 @@ export const uiText = {
   nav: {
     hero: { cn: "概览", en: "Overview" },
     pipeline: { cn: "代码", en: "Code" },
-    intelligence: { cn: "链路", en: "Intelligence" },
+    intelligence: { cn: "资产", en: "Assets" },
     creative: { cn: "创意", en: "Creative" },
     business: { cn: "数据", en: "Data" },
   },
