@@ -40,7 +40,7 @@ const narrativeSectionText = {
 const DEFAULT_PORTRAIT = "./assets/characters/demo/portrait.png";
 
 const TYPEWRITER_DEFAULTS = {
-  prompt: { chunk: 3, minDelay: 18, maxDelay: 42, initialDelay: 60 },
+  prompt: { chunk: 6, minDelay: 8, maxDelay: 18, initialDelay: 24 },
   json: { chunk: 2, minDelay: 16, maxDelay: 36, initialDelay: 120 },
   code: { chunk: 4, minDelay: 14, maxDelay: 32, initialDelay: 180 },
   manifest: { chunk: 3, minDelay: 18, maxDelay: 34, initialDelay: 220 },
@@ -206,6 +206,7 @@ const state = {
   referenceCount: 0,
   assetGenerating: false,
   assetsReady: false,
+  pipelineOutputsVisible: false,
 };
 
 const animationState = {
@@ -446,8 +447,13 @@ function startApp() {
   // 现在获取DOM元素
   dom = getDomElements();
   setupFloatingTopNav();
+  clearLanguageInputs();
   resetPromptPreview();
   resetRoleCardPreview();
+  setPipelineOutputsVisible(false);
+  if (dom.assetGrid) {
+    dom.assetGrid.hidden = true;
+  }
   mountComponents();
   attachEvents();
   hydrateNarrative();
@@ -473,6 +479,58 @@ function syncTextAreaValue(source, target) {
   if (!source || !target) return;
   if (target.value !== source.value) {
     target.value = source.value;
+  }
+}
+
+function clearLanguageInputs() {
+  state.input = "";
+  if (dom?.input) {
+    dom.input.value = "";
+  }
+  if (dom?.creativeInput) {
+    dom.creativeInput.value = "";
+  }
+}
+
+function setPipelineOutputsVisible(active) {
+  if (!dom) return;
+  state.pipelineOutputsVisible = Boolean(active);
+  const visible = state.pipelineOutputsVisible;
+
+  if (dom.promptPreview) {
+    dom.promptPreview.hidden = !visible;
+    dom.promptPreview.setAttribute("aria-hidden", String(!visible));
+    const promptPanel = dom.promptPreview.closest("article");
+    if (promptPanel) {
+      promptPanel.dataset.visible = visible ? "true" : "false";
+    }
+    if (!visible) {
+      resetPromptPreview();
+    }
+  }
+
+  const codePane = dom.codeScript?.closest(".code-script-pane");
+  if (codePane) {
+    codePane.dataset.visible = visible ? "true" : "false";
+  }
+  if (dom.codeScript) {
+    dom.codeScript.hidden = !visible;
+    dom.codeScript.setAttribute("aria-hidden", String(!visible));
+    if (!visible) {
+      primeTextArea(dom.codeScript, uiText.misc.waitingGenerate[state.lang]);
+    }
+  }
+
+  const manifestPane = dom.codeScriptManifest?.closest(".code-script-pane");
+  if (manifestPane) {
+    manifestPane.dataset.visible = visible ? "true" : "false";
+  }
+  if (dom.codeScriptManifest) {
+    dom.codeScriptManifest.hidden = !visible;
+    dom.codeScriptManifest.setAttribute("aria-hidden", String(!visible));
+    if (!visible) {
+      primeTextArea(dom.codeScriptManifest, uiText.misc.waitingGenerate[state.lang]);
+    }
   }
 }
 
@@ -586,12 +644,14 @@ function driveDescriptionChange(value, options = {}) {
   if (!dom) return null;
   const normalized = typeof value === "string" ? value : "";
   state.input = normalized;
-  updatePromptPreview(normalized);
   const trimmed = normalized.trim();
   if (!trimmed) {
+    setPipelineOutputsVisible(false);
     resetRoleCardPreview();
     return null;
   }
+  setPipelineOutputsVisible(true);
+  updatePromptPreview(normalized);
   if (state.manual && !options.force) {
     return null;
   }
@@ -653,6 +713,9 @@ function showResourceMessage(key) {
     dom.resourceGalleryEmpty.textContent = copy;
   }
   dom.resourceGalleryEmpty.hidden = false;
+  if (dom.assetGrid) {
+    dom.assetGrid.hidden = true;
+  }
 }
 
 function hideResourceMessage() {
@@ -881,11 +944,13 @@ function renderSkeletons() {
 
   resetPromptPreview();
   resetRoleCardPreview();
+  setPipelineOutputsVisible(false);
   if (dom.codeScript) primeTextArea(dom.codeScript, uiText.misc.waitingGenerate[lang]);
   if (dom.codeScriptManifest) primeTextArea(dom.codeScriptManifest, uiText.misc.waitingGenerate[lang]);
   if (dom.assetGrid) {
     dom.assetGrid.innerHTML = "";
     dom.assetGrid.dataset.revealed = "false";
+    dom.assetGrid.hidden = true;
   }
   if (dom.resourceGalleryEmpty) {
     dom.resourceGalleryEmpty.textContent = uiText.intelligence.gallery.empty[lang];
@@ -1132,6 +1197,7 @@ function updateSkeletonTexts() {
     renderRoleCardPreview(null);
     if (dom.codeScript) primeTextArea(dom.codeScript, uiText.misc.waitingGenerate[lang]);
     if (dom.codeScriptManifest) primeTextArea(dom.codeScriptManifest, uiText.misc.waitingGenerate[lang]);
+    setPipelineOutputsVisible(false);
     if (dom.finalPrompt) dom.finalPrompt.textContent = uiText.misc.building[lang];
     if (dom.ioStatus) dom.ioStatus.textContent = uiText.misc.writing[lang];
     if (dom.scriptStatus) dom.scriptStatus.textContent = uiText.misc.writing[lang];
@@ -1609,6 +1675,7 @@ async function loadResourceImages(options = {}) {
     gallery.dataset.revealed = "true";
     hideResourceMessage();
     state.assetsReady = true;
+    dom.assetGrid.hidden = false;
 
     return images;
   } catch (error) {
