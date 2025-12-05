@@ -258,8 +258,17 @@
             </header>
             <div class="commercial-grid" id="commercial-grid"></div>
             <div class="chart-placeholder">
-              <canvas id="kpi-chart"></canvas>
-              <p>图表数据由 mockCommercialMetrics() 生成，未来可接入真实 BI。</p>
+              <figure class="chart-figure">
+                <img
+                  id="business-chart"
+                  src="./chart/chart.png"
+                  alt="Lingine Workflow KPI chart"
+                  loading="lazy"
+                />
+                <figcaption id="business-chart-caption" class="sr-only">
+                  图表示例由 chart/chart.png 读取
+                </figcaption>
+              </figure>
             </div>
           </section>
         </section>

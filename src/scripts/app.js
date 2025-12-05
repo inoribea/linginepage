@@ -37,6 +37,36 @@ const narrativeSectionText = {
   behavior: { cn: "行为逻辑", en: "Behavior Logic" },
 };
 
+const DRAGONBORN_NARRATIVE = {
+  title: { cn: "龙裔圣骑士", en: "Dragonborn Paladin" },
+  lore: {
+    cn: "拥有远古龙族血统的英勇骑士，誓言以祖先之力守护王国，踏上净化地牢的旅程。",
+    en: "A valiant knight of an ancient draconic bloodline, sworn to guard the kingdom with ancestral power and embarked on a quest to purge the dungeons.",
+  },
+  art: {
+    cn: "采用32位复古像素风格，Q版二头身比例，憨态可掬。身披闪亮银色重板甲，后挂鲜艳红披风，手持一把注魔的发光巨剑。保留了标志性的金色小龙角与尾巴，色彩明快，拥有粗壮的黑色描边。",
+    en: "Rendered in 32-bit retro pixel art with a chibi two-head proportion and playful charm. Gleaming silver plate armor, a vibrant red cape, and an enchanted glowing greatsword preserve the signature golden dragon horns and tail with bright hues and bold black outlines.",
+  },
+  behavior: {
+    cn: "高机动性的近战角色。在俯视战场中能快速冲锋，依赖巨剑进行广域挥砍，清除弹幕与杂兵，风格大开大合，兼具坦度与爆发力。",
+    en: "A high-mobility melee specialist. On top-down battlefields this paladin charges quickly and uses the greatsword for sweeping arcs to clear bullet patterns and minions, fighting with bold motions that combine tankiness and burst damage.",
+  },
+};
+
+const DEFAULT_ROLE_DESCRIPTION = [
+  DRAGONBORN_NARRATIVE.title.cn,
+  DRAGONBORN_NARRATIVE.lore.cn,
+  DRAGONBORN_NARRATIVE.art.cn,
+  DRAGONBORN_NARRATIVE.behavior.cn,
+].join("\n\n");
+
+const DEFAULT_CREATIVE_SEGMENTS = {
+  0: DRAGONBORN_NARRATIVE.title,
+  1: DRAGONBORN_NARRATIVE.lore,
+  2: DRAGONBORN_NARRATIVE.art,
+  3: DRAGONBORN_NARRATIVE.behavior,
+};
+
 const DEFAULT_PORTRAIT = "./assets/characters/demo/portrait.png";
 
 const TYPEWRITER_DEFAULTS = {
@@ -50,9 +80,8 @@ const typewriterControllers = new Map();
 
 const ROLE_CARD_TEMPLATE = {
   id: "dragonborn_paladin",
-  name: "龙裔圣骑士",
-  description:
-    "拥有远古龙族血统的英勇骑士，身披闪亮银色重板甲与鲜艳红披风。手持注魔发光巨剑，誓言以祖先之力净化地牢。",
+  name: DRAGONBORN_NARRATIVE.title.cn,
+  description: DEFAULT_ROLE_DESCRIPTION,
   tags: ["dragonborn", "paladin", "hero", "melee", "tank", "high_mobility"],
   visuals: {
     portrait_path: "res://assets/characters/dragonborn_paladin/portrait.png",
@@ -78,9 +107,8 @@ const ROLE_ARCHETYPES = [
   {
     id: "dragonborn_paladin",
     keywords: ["圣骑士", "龙裔", "守护", "paladin", "骑士"],
-    name: "龙裔圣骑士",
-    description:
-      "拥有远古龙族血统的英勇骑士，身披闪亮银色重板甲与鲜艳红披风，手持注魔巨剑，以祖灵之力守护王国。",
+    name: DRAGONBORN_NARRATIVE.title.cn,
+    description: DEFAULT_ROLE_DESCRIPTION,
     tags: [...ROLE_CARD_TEMPLATE.tags],
     themeColor: ROLE_CARD_TEMPLATE.visuals.theme_color,
     skills: [...ROLE_CARD_TEMPLATE.skills],
@@ -487,9 +515,11 @@ function clearLanguageInputs() {
   state.referenceCount = 0;
   if (dom?.input) {
     dom.input.value = "";
+    dom.input.defaultValue = "";
   }
   if (dom?.creativeInput) {
     dom.creativeInput.value = "";
+    dom.creativeInput.defaultValue = "";
   }
   if (dom?.materialBriefInput) {
     dom.materialBriefInput.value = "";
@@ -1160,10 +1190,12 @@ function updateUIText() {
     const commercialHeader = businessSection.querySelector('.commercial header');
     const businessTitle = commercialHeader?.querySelector('h2');
     const businessDesc = commercialHeader?.querySelector('p');
-    const chartDesc = businessSection.querySelector('.chart-placeholder p');
+    const chartCaption = businessSection.querySelector('.chart-placeholder figcaption');
+    const chartImage = businessSection.querySelector('.chart-placeholder img');
     if (businessTitle) businessTitle.textContent = uiText.business.title[lang];
     if (businessDesc) businessDesc.textContent = uiText.business.desc[lang];
-    if (chartDesc) chartDesc.textContent = uiText.business.chartDesc[lang];
+    if (chartCaption) chartCaption.textContent = uiText.business.chartDesc[lang];
+    if (chartImage) chartImage.alt = uiText.business.chartDesc[lang];
   }
 
   const creativeTitle = document.getElementById("creative-title");
@@ -1895,30 +1927,43 @@ function renderRoleCardPreview(card, errorMessage) {
   container.append(meta, insightGrid);
 }
 
-function buildArtNarrative(card) {
+function resolveCreativeParagraph(index, card) {
   const lang = state.lang;
-  const description = (dom?.creativeInput?.value || "").trim();
-  const paragraphs = description.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-  const art = paragraphs[2] || "";
-  const fallback = lang === "cn" ? "暂无美术设计信息" : "No art direction data provided.";
+  const creativeSource = (state.creativeDescription || "").trim();
+  const descriptionSource = creativeSource || (card?.description || "").trim();
+  const paragraphs = descriptionSource
+    ? descriptionSource
+        .split(/\n{2,}/)
+        .map((p) => p.trim())
+        .filter(Boolean)
+    : [];
+  if (paragraphs[index]) {
+    return paragraphs[index];
+  }
+  const fallback = DEFAULT_CREATIVE_SEGMENTS[index];
+  if (fallback) {
+    return fallback[lang] ?? fallback.cn ?? "";
+  }
+  return "";
+}
+
+function buildArtNarrative(card) {
+  const fallback = state.lang === "cn" ? "暂无美术设计信息" : "No art direction data provided.";
+  const art = resolveCreativeParagraph(2, card);
   return art || fallback;
 }
 
 function buildLoreNarrative(card) {
-  const lang = state.lang;
-  const description = (dom?.creativeInput?.value || "").trim();
-  const paragraphs = description.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-  const lore = paragraphs[1] || "";
-  return lore || (lang === "cn" ? "暂无背景描述" : "No backstory yet.");
+  const fallback = state.lang === "cn" ? "暂无背景描述" : "No backstory yet.";
+  const lore = resolveCreativeParagraph(1, card);
+  return lore || fallback;
 }
 
 function buildBehaviorNarrative(card) {
-  const lang = state.lang;
-  const description = (dom?.creativeInput?.value || "").trim();
-  const paragraphs = description.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-  const behavior = paragraphs[3] || "";
+  const behavior = resolveCreativeParagraph(3, card);
   if (behavior) return behavior;
 
+  const lang = state.lang;
   const aiConfig = card.ai_config ?? {};
   const entries = Object.entries(aiConfig).map(([key, value]) => `${key}: ${value}`);
   if (entries.length > 0) {
@@ -2000,7 +2045,7 @@ async function mockCommercialMetrics() {
   await wait(200);
   return [
     {
-      title: { cn: "量产 Boss", en: "Mass Boss Production" },
+      title: { cn: "多样化角色生成", en: "Diverse Character Generation" },
       summary: { cn: "每日 200 角色 · GPU 集群自动扩缩", en: "200 characters/day · auto-scaling GPU clusters" },
       tts: 42,
       cost: 0.018,
