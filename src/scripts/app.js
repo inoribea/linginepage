@@ -934,20 +934,24 @@ async function runDemoFlow() {
     return;
   }
 
+  const rawDescription = dom.input?.value ?? dom.creativeInput?.value ?? "";
+  const userDescription = rawDescription.trim();
+  if (!userDescription) {
+    if (dom.input) {
+      dom.input.focus();
+    } else if (dom.creativeInput) {
+      dom.creativeInput.focus();
+    }
+    return;
+  }
+
   try {
     state.generating = true;
     collapseHeroFullscreen();
-    const rawDescription = dom.input?.value ?? dom.creativeInput?.value ?? "";
-    const userDescription = rawDescription.trim();
-    const description = userDescription || templates.tank_boss;
+    const description = userDescription;
     renderPipelineSkeletons();
     await wait(180);
-    if (userDescription) {
-      setPipelineDescription(userDescription, { force: true, mirrorCreative: true });
-    } else {
-      driveDescriptionChange(description, { force: true });
-      handleCreativeDescriptionChange(description);
-    }
+    setPipelineDescription(description, { force: true, mirrorCreative: true });
     await wait(220);
 
     const payload = buildRoutingPayload(description);
