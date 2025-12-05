@@ -190,14 +190,14 @@ ${trimmed}
 - Emit JSON with id, name, description, tags, visuals, base_stats, skills, ai_config`;
 }
 
-const resolvedPromise = Promise.resolve();
-
 const state = {
   input: "",
+  creativeDescription: "",
   manual: false,
   generating: false,
   lastDecision: null,
-  lastRoleCard: null,
+  creativeCard: null,
+  pipelineCard: null,
   lastMetrics: null,
   theme: "dark",
   lang: "cn",
@@ -209,7 +209,7 @@ const state = {
   assetGenerating: false,
   assetsReady: false,
   pipelineOutputsVisible: false,
-  promptTypingPromise: resolvedPromise,
+  promptTypingPromise: Promise.resolve(),
 };
 
 const animationState = {
@@ -454,6 +454,7 @@ function startApp() {
   resetPromptPreview();
   resetRoleCardPreview();
   setPipelineOutputsVisible(false);
+  updateEnginePreview(null);
   state.promptTypingPromise = Promise.resolve();
   if (dom.assetGrid) {
     dom.assetGrid.hidden = true;
@@ -462,7 +463,6 @@ function startApp() {
   attachEvents();
   hydrateNarrative();
   bindRibbonEvents();
-  bindStageCardFlips();
   renderLanguage();
   updateUIText(); // 更新界面文本
   setScreen("hero", { scrollIntoView: false });
@@ -471,7 +471,6 @@ function startApp() {
   document.body.dataset.theme = state.theme;
   bindHeroScrollCollapse();
   bindHeroTilt();
-  bindHeroBackFlip();
   startAnimationDriver();
   applyLingineTokens(state.theme);
   if (dom.themeIcon) dom.themeIcon.textContent = state.theme === "dark" ? "\u263E" : "\u2600";
@@ -479,15 +478,11 @@ function startApp() {
 
 let chipButtons = [];
 
-function syncTextAreaValue(source, target) {
-  if (!source || !target) return;
-  if (target.value !== source.value) {
-    target.value = source.value;
-  }
-}
-
 function clearLanguageInputs() {
   state.input = "";
+  state.creativeDescription = "";
+  state.materialBriefReady = false;
+  state.referenceCount = 0;
   if (dom?.input) {
     dom.input.value = "";
   }
@@ -497,6 +492,7 @@ function clearLanguageInputs() {
   if (dom?.materialBriefInput) {
     dom.materialBriefInput.value = "";
   }
+  updateResourceButtonState();
 }
 
 function setPipelineOutputsVisible(active) {
@@ -514,6 +510,7 @@ function setPipelineOutputsVisible(active) {
     }
     if (!visible) {
       resetPromptPreview();
+      state.promptTypingPromise = Promise.resolve();
     }
   }
 
@@ -643,11 +640,11 @@ function updatePromptPreview(description) {
 
 function resetRoleCardPreview() {
   if (!dom) return;
+  state.creativeCard = null;
   if (dom.roleCardEditor) {
     primeTextArea(dom.roleCardEditor, uiText.misc.waitingGenerate[state.lang]);
   }
   renderRoleCardPreview(null);
-  state.lastRoleCard = null;
 }
 
 function driveDescriptionChange(value, options = {}) {
@@ -658,17 +655,25 @@ function driveDescriptionChange(value, options = {}) {
   if (!trimmed) {
     setPipelineOutputsVisible(false);
     state.promptTypingPromise = Promise.resolve();
-    resetRoleCardPreview();
+    state.pipelineCard = null;
+    updateEnginePreview(null);
     return null;
   }
   setPipelineOutputsVisible(true);
   state.promptTypingPromise = updatePromptPreview(normalized);
-  if (state.manual && !options.force) {
-    return null;
+  return trimmed;
+}
+
+function handleCreativeDescriptionChange(rawValue) {
+  const description = typeof rawValue === "string" ? rawValue : "";
+  state.creativeDescription = description;
+  const trimmed = description.trim();
+  if (!trimmed) {
+    resetRoleCardPreview();
+    return;
   }
   const card = buildRoleCardFromDescription(trimmed);
-  updateRoleCard(card, { animate: true });
-  return card;
+  updateCreativeRoleCard(card, { animate: true });
 }
 
 function handleReferenceUpload(fileList) {
@@ -735,8 +740,8 @@ function hideResourceMessage() {
 }
 
 function triggerResourceGeneration(options = {}) {
-  if (state.assetGenerating) return Promise.resolve([]);
   const override = options.override === true;
+  if (state.assetGenerating) return Promise.resolve([]);
   if (!override && !canGenerateAssets()) {
     showResourceMessage("empty");
     return Promise.resolve([]);
@@ -744,10 +749,12 @@ function triggerResourceGeneration(options = {}) {
   return loadResourceImages({ override });
 }
 
-function setDescriptionValue(value, options = {}) {
+function setPipelineDescription(value, options = {}) {
   if (!dom) return;
   if (dom.input && dom.input.value !== value) dom.input.value = value;
-  if (dom.creativeInput && dom.creativeInput.value !== value) dom.creativeInput.value = value;
+  if (options.mirrorCreative && dom.creativeInput && dom.creativeInput.value !== value) {
+    dom.creativeInput.value = value;
+  }
   driveDescriptionChange(value, { force: options.force === true });
 }
 
@@ -782,7 +789,7 @@ function handleRoleCardEditorInput() {
   }
   try {
     const parsed = JSON.parse(raw);
-    state.lastRoleCard = parsed;
+    state.creativeCard = parsed;
     renderRoleCardPreview(parsed);
   } catch (error) {
     const fallbackMessage =
@@ -798,15 +805,16 @@ function attachEvents() {
   if (!dom) return; // 确保dom对象已初始化
 
   chipButtons = Array.from(document.querySelectorAll(".chip"));
-  if (dom.input && dom.creativeInput) {
+  if (dom.input) {
     dom.input.addEventListener("input", () => {
-      syncTextAreaValue(dom.input, dom.creativeInput);
       driveDescriptionChange(dom.input.value);
     });
+  }
+  if (dom.creativeInput) {
     dom.creativeInput.addEventListener("input", () => {
-      syncTextAreaValue(dom.creativeInput, dom.input);
-      driveDescriptionChange(dom.creativeInput.value);
+      handleCreativeDescriptionChange(dom.creativeInput.value);
     });
+    handleCreativeDescriptionChange(dom.creativeInput.value || "");
   }
 
   if (dom.runDemo) dom.runDemo.addEventListener("click", runDemoFlow);
@@ -845,7 +853,7 @@ function attachEvents() {
     btn.addEventListener("click", () => {
       const preset = templates[btn.dataset.template];
       if (preset) {
-        setDescriptionValue(preset, { force: true });
+        setPipelineDescription(preset, { force: true });
       }
     }),
   );
@@ -870,14 +878,11 @@ async function runDemoFlow() {
   try {
     state.generating = true;
     collapseHeroFullscreen();
-    if (dom.heroCard) {
-      dom.heroCard.classList.add("is-flipped");
-    }
     const rawDescription = dom.input?.value ?? dom.creativeInput?.value ?? "";
     const description = rawDescription.trim() || templates.tank_boss;
-    renderSkeletons();
+    renderPipelineSkeletons();
     await wait(180);
-    setDescriptionValue(description, { force: true });
+    setPipelineDescription(description, { force: true });
     await wait(220);
 
     const payload = buildRoutingPayload(description);
@@ -887,7 +892,6 @@ async function runDemoFlow() {
     const metrics = await mockCommercialMetrics();
 
     updateRouting(decision);
-    updateRoleCard(card, { animate: false });
     await updateEngineScript(script, card);
     updateEnginePreview(card);
     state.materialBriefReady = true;
@@ -947,29 +951,16 @@ function buildScriptManifest(card, script) {
   return manifest.join("\n");
 }
 
-function renderSkeletons() {
+function renderPipelineSkeletons() {
   if (!dom) return;
-
   const lang = state.lang;
-
-  resetPromptPreview();
-  resetRoleCardPreview();
+  state.pipelineCard = null;
   setPipelineOutputsVisible(false);
+  resetPromptPreview();
   state.promptTypingPromise = Promise.resolve();
   if (dom.codeScript) primeTextArea(dom.codeScript, uiText.misc.waitingGenerate[lang]);
   if (dom.codeScriptManifest) primeTextArea(dom.codeScriptManifest, uiText.misc.waitingGenerate[lang]);
-  if (dom.assetGrid) {
-    dom.assetGrid.innerHTML = "";
-    dom.assetGrid.dataset.revealed = "false";
-    dom.assetGrid.hidden = true;
-  }
-  if (dom.resourceGalleryEmpty) {
-    dom.resourceGalleryEmpty.textContent = uiText.intelligence.gallery.empty[lang];
-    dom.resourceGalleryEmpty.hidden = false;
-  }
-  state.assetGenerating = false;
-  state.assetsReady = false;
-  updateResourceButtonState();
+  updateEnginePreview(null);
 }
 
 function toggleTheme() {
@@ -1110,8 +1101,8 @@ function updateUIText() {
   if (dom.textureLabel) dom.textureLabel.textContent = uiText.intelligence.textureOverlay[lang];
   if (dom.scriptLabel) dom.scriptLabel.textContent = uiText.intelligence.scriptDeploy[lang];
   if (dom.engineStatusLine) {
-    dom.engineStatusLine.textContent = state.lastRoleCard ? getEngineStatusMessage(state.lastRoleCard) : uiText.intelligence.notOutput[lang];
-    dom.engineStatusLine.dataset.lock = state.lastRoleCard ? "true" : "false";
+    dom.engineStatusLine.textContent = state.pipelineCard ? getEngineStatusMessage(state.pipelineCard) : uiText.intelligence.notOutput[lang];
+    dom.engineStatusLine.dataset.lock = state.pipelineCard ? "true" : "false";
   }
 
   // Additional copy for redesigned intelligence layout
@@ -1180,9 +1171,9 @@ function updateUIText() {
 
   // 更新等待文本
   if (dom.codeScriptManifest) {
-    if (state.lastRoleCard) {
+    if (state.pipelineCard) {
       stopTypewriter(dom.codeScriptManifest);
-      dom.codeScriptManifest.value = buildScriptManifest(state.lastRoleCard, dom.codeScript?.value ?? "");
+      dom.codeScriptManifest.value = buildScriptManifest(state.pipelineCard, dom.codeScript?.value ?? "");
     } else {
       primeTextArea(dom.codeScriptManifest, uiText.misc.waitingGenerate[lang]);
     }
@@ -1204,9 +1195,12 @@ function updateSkeletonTexts() {
 
   const lang = state.lang;
 
-  if (!state.lastRoleCard) {
+  if (!state.creativeCard) {
     if (dom.roleCardEditor) primeTextArea(dom.roleCardEditor, uiText.misc.waitingGenerate[lang]);
     renderRoleCardPreview(null);
+  }
+
+  if (!state.pipelineCard) {
     if (dom.codeScript) primeTextArea(dom.codeScript, uiText.misc.waitingGenerate[lang]);
     if (dom.codeScriptManifest) primeTextArea(dom.codeScriptManifest, uiText.misc.waitingGenerate[lang]);
     setPipelineOutputsVisible(false);
@@ -1345,16 +1339,6 @@ function bindHeroTilt() {
   dom.heroCard.addEventListener("pointerleave", resetTilt);
 }
 
-function bindHeroBackFlip() {
-  if (!dom || !dom.heroCard) return;
-  const backFace = dom.heroCard.querySelector(".hero-face.hero-visual");
-  if (!backFace) return;
-  backFace.addEventListener("click", () => {
-    if (!dom?.heroCard?.classList.contains("is-flipped")) return;
-    dom.heroCard.classList.remove("is-flipped");
-  });
-}
-
 // Ribbon顺序：1=创意，2=链路，3=代码，4=数据
 const stageOrder = ["creative", "intelligence", "pipeline", "business"];
 const ribbonKeyToScreen = {
@@ -1379,81 +1363,6 @@ function bindRibbonEvents() {
         setScreen(targetScreen, { scrollIntoView: true });
       }
     });
-  });
-}
-
-function bindStageCardFlips() {
-  const screens = stageOrder.map((key) => document.querySelector(`.screen[data-screen="${key}"]`)).filter(Boolean);
-  screens.forEach((section) => {
-    section.addEventListener("click", (event) => {
-      if (event.target !== section && event.target.closest(".panel")) return;
-      toggleStageBack(section);
-    });
-  });
-}
-
-function toggleStageBack(section) {
-  const screenKey = section.dataset.screen;
-  if (!screenKey) return;
-  const existing = section.querySelector(".stage-back-overlay");
-  if (section.classList.contains("is-back-visible")) {
-    section.classList.remove("is-back-visible");
-    if (existing) existing.remove();
-    return;
-  }
-
-  const index = stageOrder.indexOf(screenKey);
-  if (index < 0) return;
-
-  const overlay = document.createElement("div");
-  overlay.className = `stage-back-overlay stage-back-${index + 1}`;
-  const clone = document.createElement("div");
-  clone.className = "ribbon-back-face ribbon-clone";
-  clone.dataset.order = String(index + 1);
-
-  const copy = workflowContent[index];
-  const cnTitle = copy?.cn?.title ?? "—";
-  const enTitle = copy?.en?.title ?? "—";
-  const cnDesc = copy?.cn?.desc ?? "";
-  const enDesc = copy?.en?.desc ?? "";
-  clone.innerHTML = `
-    <span class="copy-cn">${cnTitle}</span>
-    <span class="copy-en">${enTitle}</span>
-    <p class="copy-cn">${cnDesc}</p>
-    <p class="copy-en">${enDesc}</p>
-  `;
-
-  // 容纳文本与媒体占位的布局容器
-  const inner = document.createElement("div");
-  inner.className = "overlay-inner";
-
-  // 媒体占位（后续可替换为真实图片/视频）
-  const mediaSlot = document.createElement("div");
-  mediaSlot.className = "ribbon-back-media";
-  mediaSlot.innerHTML = '<div class="media-placeholder">媒体占位（图片/视频）</div>';
-
-  const closeBtn = document.createElement("button");
-  closeBtn.type = "button";
-  closeBtn.className = "overlay-close";
-  closeBtn.setAttribute("aria-label", "关闭背面卡片");
-  closeBtn.innerHTML = "&times;";
-  closeBtn.addEventListener("click", (event) => {
-    event.stopPropagation();
-    section.classList.remove("is-back-visible");
-    overlay.remove();
-  });
-
-  inner.appendChild(clone);
-  inner.appendChild(mediaSlot);
-  overlay.appendChild(inner);
-  overlay.appendChild(closeBtn);
-  overlay.addEventListener("click", () => {
-    section.classList.remove("is-back-visible");
-    overlay.remove();
-  });
-  section.appendChild(overlay);
-  requestAnimationFrame(() => {
-    section.classList.add("is-back-visible");
   });
 }
 
@@ -1560,14 +1469,14 @@ function updateRouting(decision) {
   if (dom.routingLog) dom.routingLog.value = JSON.stringify(decision, null, 2);
 }
 
-function updateRoleCard(card, options = {}) {
+function updateCreativeRoleCard(card, options = {}) {
   if (!dom) {
     console.warn('DOM not initialized yet');
     return;
   }
 
   const { animate = false } = options;
-  state.lastRoleCard = card;
+  state.creativeCard = card || null;
   if (!card) {
     resetRoleCardPreview();
     return;
@@ -1597,12 +1506,13 @@ function updateRoleCard(card, options = {}) {
   });
 }
 
-async function updateEngineScript(script, card = state.lastRoleCard) {
+async function updateEngineScript(script, card = state.pipelineCard) {
   if (!dom) {
     console.warn('DOM not initialized yet');
     return;
   }
 
+  setPipelineOutputsVisible(true);
   const codeText = script ?? "";
   try {
     await state.promptTypingPromise;
@@ -1635,12 +1545,19 @@ function updateEnginePreview(card) {
     return;
   }
 
+  state.pipelineCard = card || null;
+  const lang = state.lang;
+  const hasCard = Boolean(card);
   if (dom.engineStatusLine) {
-    dom.engineStatusLine.textContent = getEngineStatusMessage(card);
-    dom.engineStatusLine.dataset.lock = "true";
+    dom.engineStatusLine.textContent = hasCard ? getEngineStatusMessage(card) : uiText.intelligence.notOutput[lang];
+    dom.engineStatusLine.dataset.lock = hasCard ? "true" : "false";
   }
-  if (dom.ioStatus) dom.ioStatus.textContent = `res://assets/characters/${card.id}/data.json`;
-  if (dom.scriptStatus) dom.scriptStatus.textContent = "engine/scripts/autogen/role_controller.gd";
+  if (dom.ioStatus) {
+    dom.ioStatus.textContent = hasCard ? `res://assets/characters/${card.id}/data.json` : uiText.misc.writing[lang];
+  }
+  if (dom.scriptStatus) {
+    dom.scriptStatus.textContent = hasCard ? "engine/scripts/autogen/role_controller.gd" : uiText.misc.writing[lang];
+  }
 }
 
 function updateCommercial(metrics) {
