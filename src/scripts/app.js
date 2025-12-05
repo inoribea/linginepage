@@ -190,6 +190,8 @@ ${trimmed}
 - Emit JSON with id, name, description, tags, visuals, base_stats, skills, ai_config`;
 }
 
+const resolvedPromise = Promise.resolve();
+
 const state = {
   input: "",
   manual: false,
@@ -207,6 +209,7 @@ const state = {
   assetGenerating: false,
   assetsReady: false,
   pipelineOutputsVisible: false,
+  promptTypingPromise: resolvedPromise,
 };
 
 const animationState = {
@@ -451,6 +454,7 @@ function startApp() {
   resetPromptPreview();
   resetRoleCardPreview();
   setPipelineOutputsVisible(false);
+  state.promptTypingPromise = Promise.resolve();
   if (dom.assetGrid) {
     dom.assetGrid.hidden = true;
   }
@@ -490,6 +494,9 @@ function clearLanguageInputs() {
   if (dom?.creativeInput) {
     dom.creativeInput.value = "";
   }
+  if (dom?.materialBriefInput) {
+    dom.materialBriefInput.value = "";
+  }
 }
 
 function setPipelineOutputsVisible(active) {
@@ -503,6 +510,7 @@ function setPipelineOutputsVisible(active) {
     const promptPanel = dom.promptPreview.closest("article");
     if (promptPanel) {
       promptPanel.dataset.visible = visible ? "true" : "false";
+      promptPanel.hidden = !visible;
     }
     if (!visible) {
       resetPromptPreview();
@@ -512,6 +520,7 @@ function setPipelineOutputsVisible(active) {
   const codePane = dom.codeScript?.closest(".code-script-pane");
   if (codePane) {
     codePane.dataset.visible = visible ? "true" : "false";
+    codePane.hidden = !visible;
   }
   if (dom.codeScript) {
     dom.codeScript.hidden = !visible;
@@ -524,6 +533,7 @@ function setPipelineOutputsVisible(active) {
   const manifestPane = dom.codeScriptManifest?.closest(".code-script-pane");
   if (manifestPane) {
     manifestPane.dataset.visible = visible ? "true" : "false";
+    manifestPane.hidden = !visible;
   }
   if (dom.codeScriptManifest) {
     dom.codeScriptManifest.hidden = !visible;
@@ -615,15 +625,15 @@ function resetPromptPreview() {
 }
 
 function updatePromptPreview(description) {
-  if (!dom || !dom.promptPreview) return;
+  if (!dom || !dom.promptPreview) return Promise.resolve();
   const trimmed = (description || "").trim();
   if (!trimmed) {
     resetPromptPreview();
-    return;
+    return Promise.resolve();
   }
   dom.promptPreview.dataset.state = "ready";
   const config = TYPEWRITER_DEFAULTS.prompt;
-  typewriterEffect(dom.promptPreview, buildPromptFromDescription(trimmed), {
+  return typewriterEffect(dom.promptPreview, buildPromptFromDescription(trimmed), {
     chunk: config.chunk,
     minDelay: config.minDelay,
     maxDelay: config.maxDelay,
@@ -647,11 +657,12 @@ function driveDescriptionChange(value, options = {}) {
   const trimmed = normalized.trim();
   if (!trimmed) {
     setPipelineOutputsVisible(false);
+    state.promptTypingPromise = Promise.resolve();
     resetRoleCardPreview();
     return null;
   }
   setPipelineOutputsVisible(true);
-  updatePromptPreview(normalized);
+  state.promptTypingPromise = updatePromptPreview(normalized);
   if (state.manual && !options.force) {
     return null;
   }
@@ -877,12 +888,11 @@ async function runDemoFlow() {
 
     updateRouting(decision);
     updateRoleCard(card, { animate: false });
-    updateEngineScript(script, card);
+    await updateEngineScript(script, card);
     updateEnginePreview(card);
     state.materialBriefReady = true;
     state.referenceCount = Math.max(1, state.referenceCount);
     updateResourceButtonState();
-    await triggerResourceGeneration({ override: true });
     updateCommercial(metrics);
   } catch (error) {
     console.error("Demo flow error:", error);
@@ -945,6 +955,7 @@ function renderSkeletons() {
   resetPromptPreview();
   resetRoleCardPreview();
   setPipelineOutputsVisible(false);
+  state.promptTypingPromise = Promise.resolve();
   if (dom.codeScript) primeTextArea(dom.codeScript, uiText.misc.waitingGenerate[lang]);
   if (dom.codeScriptManifest) primeTextArea(dom.codeScriptManifest, uiText.misc.waitingGenerate[lang]);
   if (dom.assetGrid) {
@@ -1177,8 +1188,9 @@ function updateUIText() {
     }
   }
   if (state.input.trim()) {
-    updatePromptPreview(state.input);
+    state.promptTypingPromise = updatePromptPreview(state.input);
   } else {
+    state.promptTypingPromise = Promise.resolve();
     resetPromptPreview();
   }
   updateSkeletonTexts();
@@ -1198,6 +1210,7 @@ function updateSkeletonTexts() {
     if (dom.codeScript) primeTextArea(dom.codeScript, uiText.misc.waitingGenerate[lang]);
     if (dom.codeScriptManifest) primeTextArea(dom.codeScriptManifest, uiText.misc.waitingGenerate[lang]);
     setPipelineOutputsVisible(false);
+    state.promptTypingPromise = Promise.resolve();
     if (dom.finalPrompt) dom.finalPrompt.textContent = uiText.misc.building[lang];
     if (dom.ioStatus) dom.ioStatus.textContent = uiText.misc.writing[lang];
     if (dom.scriptStatus) dom.scriptStatus.textContent = uiText.misc.writing[lang];
@@ -1584,16 +1597,21 @@ function updateRoleCard(card, options = {}) {
   });
 }
 
-function updateEngineScript(script, card = state.lastRoleCard) {
+async function updateEngineScript(script, card = state.lastRoleCard) {
   if (!dom) {
     console.warn('DOM not initialized yet');
     return;
   }
 
   const codeText = script ?? "";
+  try {
+    await state.promptTypingPromise;
+  } catch {
+    // ignore prompt failures
+  }
   if (dom.codeScript) {
     const config = TYPEWRITER_DEFAULTS.code;
-    typewriterEffect(dom.codeScript, codeText, {
+    await typewriterEffect(dom.codeScript, codeText, {
       chunk: config.chunk,
       minDelay: config.minDelay,
       maxDelay: config.maxDelay,
@@ -1602,7 +1620,7 @@ function updateEngineScript(script, card = state.lastRoleCard) {
   }
   if (dom.codeScriptManifest) {
     const manifestConfig = TYPEWRITER_DEFAULTS.manifest;
-    typewriterEffect(dom.codeScriptManifest, buildScriptManifest(card, codeText), {
+    await typewriterEffect(dom.codeScriptManifest, buildScriptManifest(card, codeText), {
       chunk: manifestConfig.chunk,
       minDelay: manifestConfig.minDelay,
       maxDelay: manifestConfig.maxDelay,
