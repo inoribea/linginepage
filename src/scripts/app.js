@@ -173,11 +173,18 @@ function selectArchetype(description = "") {
 
 function extractRoleName(description = "") {
   if (!description) return "";
-  const namedMatch = description.match(/叫([^\s，。,.]+)/);
-  if (namedMatch?.[1]) return namedMatch[1];
-  const enMatch = description.match(/named\s+([a-z0-9_\-]+)/i);
-  if (enMatch?.[1]) return enMatch[1];
-  return description.slice(0, Math.min(10, description.length));
+  const normalized = description.trim();
+  if (!normalized) return "";
+  const paragraphs = normalized
+    .split(/\r?\n\s*\r?\n/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  if (paragraphs.length) return paragraphs[0];
+  const lines = normalized
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines[0] || normalized;
 }
 
 function buildRoleCardFromDescription(description = "") {
@@ -1190,12 +1197,13 @@ function updateUIText() {
     const commercialHeader = businessSection.querySelector('.commercial header');
     const businessTitle = commercialHeader?.querySelector('h2');
     const businessDesc = commercialHeader?.querySelector('p');
-    const chartCaption = businessSection.querySelector('.chart-placeholder figcaption');
     const chartImage = businessSection.querySelector('.chart-placeholder img');
     if (businessTitle) businessTitle.textContent = uiText.business.title[lang];
     if (businessDesc) businessDesc.textContent = uiText.business.desc[lang];
-    if (chartCaption) chartCaption.textContent = uiText.business.chartDesc[lang];
-    if (chartImage) chartImage.alt = uiText.business.chartDesc[lang];
+    if (chartImage) {
+      chartImage.src = "./chart/chart.png";
+      chartImage.alt = uiText.business.title[lang];
+    }
   }
 
   const creativeTitle = document.getElementById("creative-title");
@@ -2169,3 +2177,4 @@ function getEngineStatusMessage(card) {
 
 // 调用初始化函数
 initializeApp();
+

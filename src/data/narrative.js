@@ -53,7 +53,7 @@ export const workflowContent = [
 const sharedInputText = {
   title: { cn: "语言描述", en: "Language Description" },
   desc: { cn: "支持语音/文本与提示词拼接", en: "Supports voice/text with prompt concatenation" },
-  placeholder: { cn: "例如：做一个叫炎魔的 Boss...", en: "e.g., Create a Boss called Flame Demon..." },
+  placeholder: { cn: "", en: "" },
   help: {
     cn: "在此输入您想要创建的角色描述，例如：\"创建一个叫炎魔的Boss，血量和防御极高，使用火球和地狱火\"",
     en: "Enter the character description you want to create, e.g., \"Create a Flame Demon Boss with high HP and defense, using fireballs and hellfire\"",
@@ -184,8 +184,8 @@ export const uiText = {
       en: "Cost/speed/reuse rate comparison powered by Lingine Workflow",
     },
     chartDesc: {
-      cn: "图表示例来自 chart/chart.png 静态资源，可替换为实时输出。",
-      en: "Sample chart served from chart/chart.png and can be swapped for live BI.",
+      cn: "",
+      en: "",
     },
   },
   misc: {

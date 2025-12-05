@@ -1868,6 +1868,7 @@ body[data-theme="light"] .commercial-card {
   border-radius: 22px;
   background: rgba(0, 0, 0, 0.45);
   overflow: hidden;
+  min-height: 320px;
 }
 
 .chart-placeholder .chart-figure {
