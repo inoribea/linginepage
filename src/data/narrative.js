@@ -154,8 +154,8 @@ export const uiText = {
       desc: { cn: "生成图片素材", en: "Auto-load images under resource directory" },
       reload: { cn: "生成素材", en: "Generate Assets" },
       empty: {
-        cn: "请输入素材需求并上传至少一张参考图后，再点击生成素材。",
-        en: "Enter a material brief and upload at least one reference before generating assets.",
+        cn: "请先上传参考图，再点击生成素材。",
+        en: "Upload at least one reference image before generating assets.",
       },
       missing: {
         cn: "暂未检测到图片，请将素材放入 resource 文件夹。",

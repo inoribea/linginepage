@@ -220,6 +220,8 @@ const animationState = {
   heroScrollBound: false,
 };
 
+let pipelineGenerationToken = 0;
+
 let navHoverZone = null;
 let navHideTimer = null;
 const HERO_COLLAPSE_RANGE = 320;
@@ -661,6 +663,9 @@ function driveDescriptionChange(value, options = {}) {
   }
   setPipelineOutputsVisible(true);
   state.promptTypingPromise = updatePromptPreview(normalized);
+  if (!state.manual || options.force) {
+    runPipelineGeneration(trimmed);
+  }
   return trimmed;
 }
 
@@ -674,6 +679,23 @@ function handleCreativeDescriptionChange(rawValue) {
   }
   const card = buildRoleCardFromDescription(trimmed);
   updateCreativeRoleCard(card, { animate: true });
+}
+
+function runPipelineGeneration(description) {
+  const trimmed = (description || "").trim();
+  if (!trimmed) {
+    renderPipelineSkeletons();
+    return;
+  }
+  const token = ++pipelineGenerationToken;
+  primePipelineOutputsForGeneration();
+  const card = buildRoleCardFromDescription(trimmed);
+  updateEnginePreview(card);
+  state.pipelineCard = card;
+  mockEngineScript(card).then((script) => {
+    if (token !== pipelineGenerationToken) return;
+    updateEngineScript(script, card);
+  });
 }
 
 function handleReferenceUpload(fileList) {
@@ -882,7 +904,7 @@ async function runDemoFlow() {
     const description = rawDescription.trim() || templates.tank_boss;
     renderPipelineSkeletons();
     await wait(180);
-    setPipelineDescription(description, { force: true });
+    setPipelineDescription(description, { force: true, mirrorCreative: true });
     await wait(220);
 
     const payload = buildRoutingPayload(description);
@@ -958,6 +980,15 @@ function renderPipelineSkeletons() {
   setPipelineOutputsVisible(false);
   resetPromptPreview();
   state.promptTypingPromise = Promise.resolve();
+  if (dom.codeScript) primeTextArea(dom.codeScript, uiText.misc.waitingGenerate[lang]);
+  if (dom.codeScriptManifest) primeTextArea(dom.codeScriptManifest, uiText.misc.waitingGenerate[lang]);
+  updateEnginePreview(null);
+}
+
+function primePipelineOutputsForGeneration() {
+  if (!dom) return;
+  const lang = state.lang;
+  setPipelineOutputsVisible(true);
   if (dom.codeScript) primeTextArea(dom.codeScript, uiText.misc.waitingGenerate[lang]);
   if (dom.codeScriptManifest) primeTextArea(dom.codeScriptManifest, uiText.misc.waitingGenerate[lang]);
   updateEnginePreview(null);
